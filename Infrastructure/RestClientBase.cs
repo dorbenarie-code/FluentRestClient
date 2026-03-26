@@ -7,8 +7,6 @@ namespace FluentRestClient.Infrastructure
     public abstract class RestClientBase : IRestClient
     {
         protected string? _baseUrl;
-        protected string? _username;
-        protected string? _password;
         protected readonly Dictionary<string, string> _headers;
 
         protected RestClientBase()
@@ -29,8 +27,11 @@ namespace FluentRestClient.Infrastructure
             ArgumentException.ThrowIfNullOrWhiteSpace(username);
             ArgumentException.ThrowIfNullOrWhiteSpace(password);
 
-            _username = username;
-            _password = password;
+            var rawCredentials = $"{username}:{password}";
+            var encodedCredentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(rawCredentials));
+            
+            _headers["Authorization"] = $"Basic {encodedCredentials}";
+            
             return this;
         }
 

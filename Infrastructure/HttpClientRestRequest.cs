@@ -7,62 +7,38 @@ using FluentRestClient.Core;
 
 namespace FluentRestClient.Infrastructure
 {
-    public class HttpClientRestRequest : IRestRequest
+    public class HttpClientRestRequest : RestRequestBase
     {
         private static readonly HttpClient SharedHttpClient = new HttpClient();
-        private readonly string _path;
-        private readonly string? _baseUrl;
-        private string? _username;
-        private string? _password;
-        private readonly Dictionary<string, string> _headers;
 
         public HttpClientRestRequest(
             string path,
             string? baseUrl,
-            string? username,
-            string? password,
-            Dictionary<string, string> headers)
+            Dictionary<string, string> headers) : base(path, baseUrl, headers)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-            _path = path;
-            _baseUrl = baseUrl;
-            _username = username;
-            _password = password;
-            _headers = headers ?? throw new ArgumentNullException(nameof(headers));
         }
 
-        public IRestRequest WithBasicAuth(string username, string password)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(username);
-            ArgumentException.ThrowIfNullOrWhiteSpace(password);
-
-            _username = username;
-            _password = password;
-            return this;
-        }
-
-        public IRestRequest WithHeader(string key, string value)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            ArgumentNullException.ThrowIfNull(value);
-
-            _headers[key] = value;
-            return this;
-        }
-
-        public async Task<RestResponse> GetAsync()
+        public override async Task<RestResponse> GetAsync()
         {
             using var requestMessage = CreateRequestMessage(HttpMethod.Get);
             return await SendAsync(requestMessage);
         }
 
-        public async Task<RestResponse> PostAsync(string body)
+        public override async Task<RestResponse> PostAsync(string body)
         {
             using var requestMessage = CreateRequestMessage(HttpMethod.Post);
 
-            var contentType = GetContentTypeOrDefault();
-            requestMessage.Content = new StringContent(body ?? string.Empty, Encoding.UTF8, contentType);
+            var requestBody = body ?? string.Empty;
+
+            if (_headers.TryGetValue("Content-Type", out var contentType) && !string.IsNullOrWhiteSpace(contentType))
+            {
+                requestMessage.Content = new StringContent(requestBody, Encoding.UTF8, contentType);
+            }
+            else
+            {
+                requestMessage.Content = new StringContent(requestBody, Encoding.UTF8);
+                requestMessage.Content.Headers.ContentType = null;
+            }
 
             return await SendAsync(requestMessage);
         }
@@ -83,27 +59,7 @@ namespace FluentRestClient.Infrastructure
                 requestMessage.Headers.TryAddWithoutValidation(header.Key, header.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password))
-            {
-                var encodedCredentials = Convert.ToBase64String(
-                    Encoding.UTF8.GetBytes($"{_username}:{_password}"));
-
-                requestMessage.Headers.Authorization =
-                    new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", encodedCredentials);
-            }
-
             return requestMessage;
-        }
-
-        private string GetContentTypeOrDefault()
-        {
-            if (_headers.TryGetValue("Content-Type", out var contentType) &&
-                !string.IsNullOrWhiteSpace(contentType))
-            {
-                return contentType;
-            }
-
-            return "application/json";
         }
 
         private static async Task<RestResponse> SendAsync(HttpRequestMessage requestMessage)

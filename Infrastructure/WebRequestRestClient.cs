@@ -15,8 +15,6 @@ namespace FluentRestClient.Infrastructure
             return new WebRequestRestRequest(
                 path,
                 _baseUrl,
-                _username,
-                _password,
                 headersCopy);
         }
     }

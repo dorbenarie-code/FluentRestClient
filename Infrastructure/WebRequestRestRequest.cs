@@ -8,63 +8,28 @@ using FluentRestClient.Core;
 
 namespace FluentRestClient.Infrastructure
 {
-    public class WebRequestRestRequest : IRestRequest
+    public class WebRequestRestRequest : RestRequestBase
     {
-        private readonly string _path;
-        private readonly string? _baseUrl;
-        private string? _username;
-        private string? _password;
-        private readonly Dictionary<string, string> _headers;
-
         public WebRequestRestRequest(
             string path,
             string? baseUrl,
-            string? username,
-            string? password,
-            Dictionary<string, string> headers)
+            Dictionary<string, string> headers) : base(path, baseUrl, headers)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-            _path = path;
-            _baseUrl = baseUrl;
-            _username = username;
-            _password = password;
-            _headers = headers ?? throw new ArgumentNullException(nameof(headers));
         }
 
-        public IRestRequest WithBasicAuth(string username, string password)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(username);
-            ArgumentException.ThrowIfNullOrWhiteSpace(password);
-
-            _username = username;
-            _password = password;
-            return this;
-        }
-
-        public IRestRequest WithHeader(string key, string value)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            ArgumentNullException.ThrowIfNull(value);
-
-            _headers[key] = value;
-            return this;
-        }
-
-        public async Task<RestResponse> GetAsync()
+        public override async Task<RestResponse> GetAsync()
         {
             var request = CreateRequest("GET");
             return await SendAsync(request);
         }
 
-        public async Task<RestResponse> PostAsync(string body)
+        public override async Task<RestResponse> PostAsync(string body)
         {
             var request = CreateRequest("POST");
 
             var requestBody = body ?? string.Empty;
             var bodyBytes = Encoding.UTF8.GetBytes(requestBody);
 
-            request.ContentType = GetContentTypeOrDefault();
             request.ContentLength = bodyBytes.Length;
 
             await using (var requestStream = await request.GetRequestStreamAsync())
@@ -90,60 +55,32 @@ namespace FluentRestClient.Infrastructure
                 ApplyHeader(request, header.Key, header.Value);
             }
 
-            if (!string.IsNullOrWhiteSpace(_username) && !string.IsNullOrWhiteSpace(_password))
-            {
-                var rawCredentials = $"{_username}:{_password}";
-                var encodedCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(rawCredentials));
-                request.Headers[HttpRequestHeader.Authorization] = $"Basic {encodedCredentials}";
-            }
-
             return request;
         }
 
         private static void ApplyHeader(HttpWebRequest request, string key, string value)
         {
-            if (string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+            switch (key.ToLowerInvariant())
             {
-                request.ContentType = value;
-                return;
+                case "content-type":
+                    request.ContentType = value;
+                    break;
+                case "accept":
+                    request.Accept = value;
+                    break;
+                case "user-agent":
+                    request.UserAgent = value;
+                    break;
+                case "referer":
+                    request.Referer = value;
+                    break;
+                case "host":
+                    request.Host = value;
+                    break;
+                default:
+                    request.Headers[key] = value;
+                    break;
             }
-
-            if (string.Equals(key, "Accept", StringComparison.OrdinalIgnoreCase))
-            {
-                request.Accept = value;
-                return;
-            }
-
-            if (string.Equals(key, "User-Agent", StringComparison.OrdinalIgnoreCase))
-            {
-                request.UserAgent = value;
-                return;
-            }
-
-            if (string.Equals(key, "Referer", StringComparison.OrdinalIgnoreCase))
-            {
-                request.Referer = value;
-                return;
-            }
-
-            if (string.Equals(key, "Host", StringComparison.OrdinalIgnoreCase))
-            {
-                request.Host = value;
-                return;
-            }
-
-            request.Headers[key] = value;
-        }
-
-        private string GetContentTypeOrDefault()
-        {
-            if (_headers.TryGetValue("Content-Type", out var contentType) &&
-                !string.IsNullOrWhiteSpace(contentType))
-            {
-                return contentType;
-            }
-
-            return "application/json";
         }
 
         private static async Task<RestResponse> SendAsync(HttpWebRequest request)
