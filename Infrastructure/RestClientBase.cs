@@ -4,43 +4,22 @@ using FluentRestClient.Core;
 
 namespace FluentRestClient.Infrastructure
 {
-    public abstract class RestClientBase : IRestClient
+    public abstract class RestClientBase : FluentHeadersBase<IRestClient>, IRestClient
     {
         protected string? _baseUrl;
-        protected readonly Dictionary<string, string> _headers;
 
         protected RestClientBase()
+            : base(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
         {
-            _headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
+
+        protected override IRestClient Self => this;
 
         public IRestClient WithBaseUrl(string baseUrl)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(baseUrl);
 
             _baseUrl = baseUrl.TrimEnd('/');
-            return this;
-        }
-
-        public IRestClient WithBasicAuth(string username, string password)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(username);
-            ArgumentException.ThrowIfNullOrWhiteSpace(password);
-
-            var rawCredentials = $"{username}:{password}";
-            var encodedCredentials = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(rawCredentials));
-            
-            _headers["Authorization"] = $"Basic {encodedCredentials}";
-            
-            return this;
-        }
-
-        public IRestClient WithHeader(string key, string value)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(key);
-            ArgumentNullException.ThrowIfNull(value);
-
-            _headers[key] = value;
             return this;
         }
 
